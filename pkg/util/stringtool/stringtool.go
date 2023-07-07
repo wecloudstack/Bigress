@@ -95,6 +95,11 @@ func IsAnyEmpty(strs ...string) bool {
 	return false
 }
 
+// LowerChar return where the lowercase of the char
+func LowerChar(c byte) byte {
+	return c | ('x' - 'X')
+}
+
 // StringMatcher defines the match rule of a string
 type StringMatcher struct {
 	Exact  string `json:"exact" jsonschema:"omitempty"`

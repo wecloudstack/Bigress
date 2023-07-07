@@ -38,8 +38,7 @@ type (
 	// 2. Reduce execution time of callers by asynchronous log(return after only memory copy).
 	// 3. Batch write logs by cache them with timeout.
 	logFile struct {
-		filename string
-		file     *os.File
+		logger *Logger
 
 		logChan       chan []byte
 		syncEventChan chan *syncEvent
@@ -55,49 +54,18 @@ type (
 )
 
 // newLogFile can not open /dev/stderr, it will cause dead lock.
-func newLogFile(filename string, maxCacheCount uint32) (*logFile, error) {
+func newLogFile(spec *Spec, maxCacheCount uint32) (*logFile, error) {
 	lf := &logFile{
-		filename:      filename,
 		logChan:       make(chan []byte, logChanSize),
 		syncEventChan: make(chan *syncEvent),
 		maxCacheCount: maxCacheCount,
 		cache:         bytes.NewBuffer(nil),
-	}
-
-	err := lf.openFile()
-	if err != nil {
-		return nil, err
+		logger:        NewLogger(spec),
 	}
 
 	go lf.run()
 
 	return lf, nil
-}
-
-func (lf *logFile) openFile() error {
-	file, err := os.OpenFile(lf.filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o640)
-	if err != nil {
-		return err
-	}
-
-	lf.file = file
-	return nil
-}
-
-func (lf *logFile) closeFile() {
-	err := lf.file.Close()
-	if err != nil {
-		stderrLogger.Errorf("close %s failed: %v", lf.filename, err)
-	}
-}
-
-func (lf *logFile) reopenFile() {
-	lf.closeFile()
-	err := lf.openFile()
-	if err != nil {
-		stderrLogger.Errorf("open %s failed: %v", lf.filename, err)
-		return
-	}
 }
 
 func (lf *logFile) run() {
@@ -107,7 +75,11 @@ func (lf *logFile) run() {
 	for {
 		select {
 		case <-signalChan:
-			lf.reopenFile()
+			stderrLogger.Infof("notify SIGHUP signal and rotate %s file", lf.logger.filename())
+			err := lf.logger.Rotate()
+			if err != nil {
+				stderrLogger.Warnf("log file rotate fail %s", err)
+			}
 		case p := <-lf.logChan:
 			lf.writeLog(p)
 		case syncEvent := <-lf.syncEventChan:
@@ -115,7 +87,7 @@ func (lf *logFile) run() {
 			if err != nil {
 				syncEvent.resultChan <- err
 			} else {
-				syncEvent.resultChan <- lf.file.Sync()
+				syncEvent.resultChan <- lf.logger.file.Sync()
 			}
 		case <-time.After(cacheTimeout):
 			lf.flush()
@@ -146,7 +118,7 @@ func (lf *logFile) Sync() error {
 func (lf *logFile) writeLog(p []byte) {
 	// No need to copy twice for non-cacheable log file.
 	if lf.maxCacheCount == 0 {
-		_, err := lf.file.Write(p)
+		_, err := lf.logger.Write(p)
 		if err != nil {
 			stderrLogger.Errorf("%v", err)
 		}
@@ -181,9 +153,9 @@ func (lf *logFile) flush() error {
 		lf.cacheCount = 0
 	}()
 
-	n, err := lf.file.Write(lf.cache.Bytes())
+	n, err := lf.logger.Write(lf.cache.Bytes())
 	if err != nil || n != lf.cache.Len() {
-		return fmt.Errorf("write buffer to %s failed: %d, %v", lf.filename, n, err)
+		return fmt.Errorf("write buffer to %s failed: %d, %v", lf.logger.filename(), n, err)
 	}
 
 	return nil

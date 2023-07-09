@@ -148,6 +148,7 @@ func New() *Options {
 	opt.flags.StringVar(&opt.CertFile, "cert-file", "", "Flag to set the certificate file for https.")
 	opt.flags.StringVar(&opt.KeyFile, "key-file", "", "Flag to set the private key file for https.")
 	opt.flags.BoolVar(&opt.Debug, "debug", false, "Flag to set lowest log level from INFO downgrade DEBUG.")
+	opt.flags.BoolVar(&opt.DisableAccessLog, "disable-access", false, "Flag to set whether to disable access logs")
 	opt.flags.StringSliceVar(&opt.InitialObjectConfigFiles, "initial-object-config-files", nil, "List of configuration files for initial objects, these objects will be created at startup if not already exist.")
 	opt.flags.StringVar(&opt.ObjectsDumpInterval, "objects-dump-interval", "", "The time interval to dump running objects config, for example: 30m")
 

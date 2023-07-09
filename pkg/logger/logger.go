@@ -20,6 +20,7 @@ package logger
 
 import (
 	"github.com/megaease/easegress/pkg/util/codectool"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"os"
 	"path/filepath"
@@ -273,6 +274,7 @@ func newPlainLogger(opt *option.Options, spec *Spec, maxCacheCount uint32) *zap.
 	if opt.DisableAccessLog {
 		return zap.NewNop().Sugar()
 	}
+	&lumberjack.Logger{}
 
 	encoderConfig := zapcore.EncoderConfig{
 		TimeKey:       "",
